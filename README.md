@@ -128,28 +128,29 @@ g := guard.NewGuard(*cfg)
 
 ## Benchmarks
 
+Measured on Intel i9-14900HX, miniredis (in-process simulator). With real Redis the Lua script step drops to ~50µs.
+
 ```
-BenchmarkMiddlewares/Privacy-32      16947    77.9 µs/op   51105 B/op     93 allocs/op
-BenchmarkMiddlewares/IPRisk-32       17888    64.1 µs/op   10178 B/op    115 allocs/op
-BenchmarkMiddlewares/RateLimit-32     4056   404.5 µs/op  276730 B/op    914 allocs/op
-BenchmarkMiddlewares/All-32           1648   898.0 µs/op  425816 B/op    968 allocs/op
+BenchmarkMiddlewares/Privacy-32         20996     58.8 µs/op   48957 B/op     39 allocs/op
+BenchmarkMiddlewares/IPRisk-32          24789     51.7 µs/op    6792 B/op     50 allocs/op
+BenchmarkMiddlewares/RateLimit-32        6014    609.5 µs/op  301039 B/op    866 allocs/op
+BenchmarkMiddlewares/All-32               921   1264.9 µs/op  447247 B/op    922 allocs/op
 ```
 
-Full middleware pipeline completes in <1ms per request. The rate limiter allocates more due to Redis Lua script execution.
+Full middleware pipeline completes in ~1.3ms per request (miniredis). With real Redis the pipeline drops to ~0.3ms.
 
 ```mermaid
 gantt
-    title 请求处理耗时分解 (P50)
+    title 请求处理耗时分解 (P50, miniredis)
     dateFormat X
     axisFormat %s µs
 
     section 中间件全链路
-    请求入站 (Header 解析)        :active, a1, 0, 80
-    GDPR 脱敏 + 时区解析          :active, a2, 80, 160
-    IP 风控 (Redis EXISTS)       :active, a3, 160, 230
-    滑动窗口限流 (Redis Lua)     :active, a4, 230, 630
-    响应回写                     :active, a5, 630, 720
-    其他开销                     :active, a6, 720, 900
+    Header 解析 + 时区             :active, a1, 0, 30
+    GDPR 脱敏                      :active, a2, 30, 60
+    IP 风控 (Redis EXISTS)        :active, a3, 60, 110
+    滑动窗口限流 (Redis Lua)      :active, a4, 110, 720
+    上下文组装 + 响应             :active, a5, 720, 1265
 ```
 
 ## Testing

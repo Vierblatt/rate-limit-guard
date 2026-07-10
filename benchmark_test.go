@@ -19,46 +19,9 @@ func BenchmarkSlidingWindowLimiter(b *testing.B) {
 	lim := limiter.New(rds, cfg)
 
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			lim.Allow(limiter.RoleGuest, "bench-guest")
-		}
-	})
-}
-
-func BenchmarkFullMiddleware(b *testing.B) {
-	rds := testRedis(b)
-
-	g := NewGuardWithRedis(Config{
-		Limiter: limiter.Config{
-			WindowSec: 60, GuestLimit: 100000, UserLimit: 100000, AdminBypass: true,
-		},
-		IPRisk:  iprisk.Config{Enabled: true, MaxFails: 10, BlacklistTTL: 1},
-		Privacy: privacy.Config{Enabled: true, SensitiveHeaders: []string{"Authorization", "Email"}, TimezoneHeader: "X-Timezone"},
-	}, rds)
-
-	mw := g.Middleware()
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			req, _ := http.NewRequest("GET", server.URL, nil)
-			req.Header.Set("X-User-Id", "bench-user")
-			req.Header.Set("X-Timezone", "Asia/Shanghai")
-			req.Header.Set("Authorization", "Bearer test-token")
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				b.Fatal(err)
-			}
-			resp.Body.Close()
-		}
-	})
+	for i := 0; i < b.N; i++ {
+		lim.Allow(limiter.RoleGuest, "bench-guest")
+	}
 }
 
 func BenchmarkMiddlewares(b *testing.B) {
@@ -88,21 +51,15 @@ func BenchmarkMiddlewares(b *testing.B) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
-			server := httptest.NewServer(handler)
-			defer server.Close()
-
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					req, _ := http.NewRequest("GET", server.URL, nil)
-					req.Header.Set("X-User-Id", "bench-user")
-					req.Header.Set("X-Timezone", "Asia/Shanghai")
-					resp, err := http.DefaultClient.Do(req)
-					if err != nil {
-						b.Fatal(err)
-					}
-					resp.Body.Close()
-				}
-			})
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				req := httptest.NewRequest("GET", "/", nil)
+				req.Header.Set("X-User-Id", "bench-user")
+				req.Header.Set("X-Timezone", "Asia/Shanghai")
+				req.Header.Set("Authorization", "Bearer test-token")
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+			}
 		})
 	}
 }
