@@ -1,0 +1,9 @@
+*.out
+*.test
+*.exe
+coverage.html
+.DS_Store
+Thumbs.db
+vendor/
+*.txt
+coverage.out

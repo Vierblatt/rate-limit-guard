@@ -1,0 +1,31 @@
+Limiter:
+  RedisAddr: localhost:6379
+  RedisPass: ""
+  RedisDB: 0
+  WindowSec: 60
+  GuestLimit: 30
+  UserLimit: 100
+  AdminBypass: true
+
+IPRisk:
+  Enabled: true
+  BlacklistTTL: 10
+  MaxFails: 3
+  Whitelist: []
+  HighRiskCountries:
+    - RU
+    - UA
+    - NG
+    - BD
+    - PK
+    - VN
+    - ID
+
+Privacy:
+  Enabled: true
+  SensitiveHeaders:
+    - Authorization
+    - Email
+    - Device-Id
+    - X-Device-Id
+  TimezoneHeader: X-Timezone
