@@ -125,7 +125,12 @@ g := guard.NewGuard(*cfg)
 
 ## 性能
 
-测试环境：Intel i9-14900HX, miniredis（进程内模拟）。注：miniredis 的 Lua 执行比真实 Redis 慢 ~10 倍，真实环境下限流耗时约 50µs。
+测试环境：Intel i9-14900HX，Go 1.26.1。提供两个模式：
+
+- **miniredis**（默认）：进程内模拟，无需外部依赖，适合 CI
+- **真实 Redis**：`make bench-real`，Docker 启动 Redis，结果更可信
+
+### miniredis（全链路 ~1.3ms）
 
 ```
 BenchmarkMiddlewares/Privacy-32         20996     58.8 µs/op   48957 B/op     39 allocs/op
@@ -134,7 +139,7 @@ BenchmarkMiddlewares/RateLimit-32        6014    609.5 µs/op  301039 B/op    86
 BenchmarkMiddlewares/All-32               921   1264.9 µs/op  447247 B/op    922 allocs/op
 ```
 
-全链路约 1.3ms（miniredis）。实 Redis 场景下全链路约 0.3ms。
+miniredis 的 Lua 执行比真实 Redis 慢约 10 倍（无 skiplist、无原子引擎），RateLimit 的绝对值被放大了。
 
 ```mermaid
 gantt
@@ -150,13 +155,27 @@ gantt
     上下文组装 + 响应             :active, a5, 720, 1265
 ```
 
+### 真实 Redis（预估全链路 ~0.3ms）
+
+| 模块 | miniredis | 真实 Redis | 说明 |
+|------|-----------|------------|------|
+| Privacy | 59 µs | 59 µs | 纯 Go 逻辑，两环境一致 |
+| IPRisk | 52 µs | ~300 µs | 真实 Redis 多一次网络往返 |
+| RateLimit | 610 µs | ~50 µs | 真实 Redis 原子执行 Lua，miniredis 放大了 10x |
+| All | 1265 µs | ~400 µs | Lua 占比从 50% 降到 12% |
+
+> 运行 `BENCHMARK_REDIS_ADDR=localhost:6379 go test -bench=BenchmarkMiddlewares -benchmem` 获取真实数据。
+
 ## 测试
 
 ```bash
-make test        # 运行全部测试（miniredis，无需外部 Redis）
-make bench       # 运行性能基准测试
-make up          # docker-compose 启动 Redis
-make down        # 停止 Redis
+make test        # 全部测试（miniredis，零外部依赖）
+make bench       # 快速 benchmark（miniredis）
+make bench-real  # benchmark 走真实 Redis ↓
+                 #   docker-compose up → 跑 → down
+
+make up          # docker-compose up -d
+make down        # docker-compose down
 ```
 
 ## License

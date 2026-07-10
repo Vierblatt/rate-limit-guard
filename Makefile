@@ -12,7 +12,20 @@ test:
 	go test ./... -v -count=1 -race
 
 bench:
-	go test -bench=. -benchmem -count=3 -timeout=60s
+	go test -bench=BenchmarkMiddlewares -benchmem -count=1 -timeout=60s | grep -v slowcall
+
+bench-all:
+	go test -bench=. -benchmem -count=1 -timeout=60s | grep -v slowcall
+
+bench-real:
+	docker-compose up -d
+	BENCHMARK_REDIS_ADDR=localhost:6379 go test -bench=BenchmarkMiddlewares -benchmem -count=1 -timeout=60s
+	docker-compose down
+
+bench-full:
+	docker-compose up -d
+	BENCHMARK_REDIS_ADDR=localhost:6379 go test -bench=. -benchmem -count=1 -timeout=60s
+	docker-compose down
 
 build:
 	go build ./...
