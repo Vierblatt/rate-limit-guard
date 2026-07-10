@@ -1,19 +1,19 @@
-package guard
+package privacy
 
 import (
 	"net/http"
 	"time"
 )
 
-type timezoneParser struct {
+type TimezoneParser struct {
 	headerName string
 }
 
-func newTimezoneParser(headerName string) *timezoneParser {
-	return &timezoneParser{headerName: headerName}
+func NewTimezoneParser(headerName string) *TimezoneParser {
+	return &TimezoneParser{headerName: headerName}
 }
 
-func (p *timezoneParser) Parse(h http.Header) *time.Location {
+func (p *TimezoneParser) Parse(h http.Header) *time.Location {
 	tzStr := h.Get(p.headerName)
 	if tzStr == "" {
 		return time.UTC

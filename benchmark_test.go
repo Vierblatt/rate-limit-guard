@@ -4,23 +4,24 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/Vierblatt/rate-limit-guard/iprisk"
+	"github.com/Vierblatt/rate-limit-guard/limiter"
+	"github.com/Vierblatt/rate-limit-guard/privacy"
 )
 
 func BenchmarkSlidingWindowLimiter(b *testing.B) {
 	rds := testRedis(b)
 
-	cfg := LimiterConfig{
-		WindowSec:   60,
-		GuestLimit:  10000,
-		UserLimit:   10000,
-		AdminBypass: true,
+	cfg := limiter.Config{
+		WindowSec: 60, GuestLimit: 10000, UserLimit: 10000, AdminBypass: true,
 	}
-	lim := NewSlidingWindowLimiter(rds, cfg)
+	lim := limiter.New(rds, cfg)
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			lim.Allow(RoleGuest, "bench-guest")
+			lim.Allow(limiter.RoleGuest, "bench-guest")
 		}
 	})
 }
@@ -29,22 +30,11 @@ func BenchmarkFullMiddleware(b *testing.B) {
 	rds := testRedis(b)
 
 	g := NewGuardWithRedis(Config{
-		Limiter: LimiterConfig{
-			WindowSec:   60,
-			GuestLimit:  100000,
-			UserLimit:   100000,
-			AdminBypass: true,
+		Limiter: limiter.Config{
+			WindowSec: 60, GuestLimit: 100000, UserLimit: 100000, AdminBypass: true,
 		},
-		IPRisk: IPRiskConfig{
-			Enabled:      true,
-			MaxFails:     10,
-			BlacklistTTL: 1,
-		},
-		Privacy: PrivacyConfig{
-			Enabled:          true,
-			SensitiveHeaders: []string{"Authorization", "Email"},
-			TimezoneHeader:   "X-Timezone",
-		},
+		IPRisk:  iprisk.Config{Enabled: true, MaxFails: 10, BlacklistTTL: 1},
+		Privacy: privacy.Config{Enabled: true, SensitiveHeaders: []string{"Authorization", "Email"}, TimezoneHeader: "X-Timezone"},
 	}, rds)
 
 	mw := g.Middleware()
@@ -75,22 +65,11 @@ func BenchmarkMiddlewares(b *testing.B) {
 	rds := testRedis(b)
 
 	g := NewGuardWithRedis(Config{
-		Limiter: LimiterConfig{
-			WindowSec:   60,
-			GuestLimit:  100000,
-			UserLimit:   100000,
-			AdminBypass: true,
+		Limiter: limiter.Config{
+			WindowSec: 60, GuestLimit: 100000, UserLimit: 100000, AdminBypass: true,
 		},
-		IPRisk: IPRiskConfig{
-			Enabled:      true,
-			MaxFails:     10,
-			BlacklistTTL: 1,
-		},
-		Privacy: PrivacyConfig{
-			Enabled:          true,
-			SensitiveHeaders: []string{"Authorization", "Email"},
-			TimezoneHeader:   "X-Timezone",
-		},
+		IPRisk:  iprisk.Config{Enabled: true, MaxFails: 10, BlacklistTTL: 1},
+		Privacy: privacy.Config{Enabled: true, SensitiveHeaders: []string{"Authorization", "Email"}, TimezoneHeader: "X-Timezone"},
 	}, rds)
 
 	benchmarks := []struct {

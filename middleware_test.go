@@ -5,12 +5,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/Vierblatt/rate-limit-guard/iprisk"
+	"github.com/Vierblatt/rate-limit-guard/limiter"
+	"github.com/Vierblatt/rate-limit-guard/privacy"
 )
 
 func TestMiddleware_Privacy(t *testing.T) {
 	rds := testRedis(t)
 	g := NewGuardWithRedis(Config{
-		Privacy: PrivacyConfig{
+		Privacy: privacy.Config{
 			Enabled:          true,
 			SensitiveHeaders: []string{"Authorization", "Email"},
 			TimezoneHeader:   "X-Timezone",
@@ -34,11 +38,9 @@ func TestMiddleware_Privacy(t *testing.T) {
 	if capturedHeaders == nil {
 		t.Fatal("sanitized headers not stored in context")
 	}
-
 	if capturedHeaders.Get("Authorization") == "Bearer my-secret-token" {
 		t.Error("Authorization was not sanitized")
 	}
-
 	if capturedTZ != "Asia/Tokyo" {
 		t.Errorf("timezone = %s, want Asia/Tokyo", capturedTZ)
 	}
@@ -47,10 +49,7 @@ func TestMiddleware_Privacy(t *testing.T) {
 func TestMiddleware_IPRisk_Allow(t *testing.T) {
 	rds := testRedis(t)
 	g := NewGuardWithRedis(Config{
-		IPRisk: IPRiskConfig{
-			Enabled:  true,
-			MaxFails: 3,
-		},
+		IPRisk: iprisk.Config{Enabled: true, MaxFails: 3},
 	}, rds)
 
 	mw := g.IPRiskMiddleware()
@@ -70,11 +69,8 @@ func TestMiddleware_IPRisk_Allow(t *testing.T) {
 func TestMiddleware_RateLimit(t *testing.T) {
 	rds := testRedis(t)
 	g := NewGuardWithRedis(Config{
-		Limiter: LimiterConfig{
-			WindowSec:   60,
-			GuestLimit:  2,
-			UserLimit:   10,
-			AdminBypass: true,
+		Limiter: limiter.Config{
+			WindowSec: 60, GuestLimit: 2, UserLimit: 10, AdminBypass: true,
 		},
 	}, rds)
 
@@ -92,18 +88,16 @@ func TestMiddleware_RateLimit(t *testing.T) {
 	}
 
 	t.Run("guest rate limited", func(t *testing.T) {
-		code1 := do(t, "", "")
-		code2 := do(t, "", "")
-		code3 := do(t, "", "")
-		if code1 != 200 || code2 != 200 {
-			t.Error("first two requests should be allowed")
+		c1, c2, c3 := do(t, "", ""), do(t, "", ""), do(t, "", "")
+		if c1 != 200 || c2 != 200 {
+			t.Error("first two should be 200")
 		}
-		if code3 != 429 {
-			t.Errorf("third request should be 429, got %d", code3)
+		if c3 != 429 {
+			t.Errorf("third should be 429, got %d", c3)
 		}
 	})
 
-	t.Run("user not rate limited within generous limit", func(t *testing.T) {
+	t.Run("user not rate limited", func(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			if code := do(t, "X-User-Id", "test-user"); code == 429 {
 				t.Errorf("user blocked on attempt %d", i+1)
@@ -125,20 +119,13 @@ func TestMiddleware_RateLimit(t *testing.T) {
 func TestMiddleware_Full_Chain(t *testing.T) {
 	rds := testRedis(t)
 	g := NewGuardWithRedis(Config{
-		Limiter: LimiterConfig{
-			WindowSec:   60,
-			GuestLimit:  5,
-			UserLimit:   100,
-			AdminBypass: true,
+		Limiter: limiter.Config{
+			WindowSec: 60, GuestLimit: 5, UserLimit: 100, AdminBypass: true,
 		},
-		IPRisk: IPRiskConfig{
-			Enabled:  true,
-			MaxFails: 5,
-		},
-		Privacy: PrivacyConfig{
-			Enabled:          true,
-			SensitiveHeaders: []string{"Authorization"},
-			TimezoneHeader:   "X-Timezone",
+		IPRisk: iprisk.Config{Enabled: true, MaxFails: 5},
+		Privacy: privacy.Config{
+			Enabled: true, SensitiveHeaders: []string{"Authorization"},
+			TimezoneHeader: "X-Timezone",
 		},
 	}, rds)
 
@@ -149,10 +136,10 @@ func TestMiddleware_Full_Chain(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer test")
 
 	rec := httptest.NewRecorder()
-	var capturedRole Role
+	var capturedRole string
 	var capturedTZ string
 	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedRole = GetRole(r.Context())
+		capturedRole = GetRole(r.Context()).String()
 		capturedTZ = GetTimezone(r.Context()).String()
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -161,8 +148,8 @@ func TestMiddleware_Full_Chain(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
-	if capturedRole != RoleUser {
-		t.Errorf("role = %v, want RoleUser", capturedRole)
+	if capturedRole != "user" {
+		t.Errorf("role = %s, want user", capturedRole)
 	}
 	if capturedTZ != "America/New_York" {
 		t.Errorf("timezone = %s, want America/New_York", capturedTZ)

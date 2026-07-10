@@ -15,26 +15,29 @@ A pluggable gateway middleware for overseas social platforms, integrating multi-
 
 ```
 rate-limit-guard/
-├── guard.go              # Guard struct, NewGuard / NewGuardWithRedis
-├── config.go             # Config, LimiterConfig, IPRiskConfig, PrivacyConfig
-├── config.yaml           # Default configuration file
+├── guard.go                    # Guard struct, NewGuard / NewGuardWithRedis
+├── config.go                   # Config (composes sub-package configs)
+├── middleware.go                # go-zero rest.Middleware adapters
+├── context.go                  # Context helpers (Role, Timezone, Region)
+├── metrics.go                  # Prometheus counters (promauto)
 │
-├── sliding_window.go     # Redis ZSET sliding window limiter (guest/user/admin)
-├── ip_risk.go            # Country-based risk evaluation + whitelist
-├── blacklist.go          # Redis-backed temp blacklist (auto-ban after N fails)
+├── limiter/
+│   ├── config.go               # limiter.Config (WindowSec, GuestLimit, …)
+│   └── sliding_window.go       # SlidingWindowLimiter + Role (guest/user/admin)
 │
-├── gdpr.go               # Header sanitization (Bearer, Email, Device-ID masking)
-├── timezone.go           # Timezone parser from X-Timezone header
+├── iprisk/
+│   ├── config.go               # iprisk.Config (BlacklistTTL, MaxFails, …)
+│   ├── ip_risk.go              # IPRisk — country-based risk evaluation + whitelist
+│   └── blacklist.go            # Blacklist — Redis-backed temp ban
 │
-├── middleware.go          # go-zero rest.Middleware adapters (4 entry points)
-├── context.go            # Context helpers: GetRole, GetTimezone, GetRegion
-├── metrics.go            # Prometheus counters (promauto, auto-registered)
+├── privacy/
+│   ├── config.go               # privacy.Config (TimezoneHeader, SensitiveHeaders)
+│   ├── gdpr.go                 # Sanitizer — Bearer/Email/Device-ID masking
+│   └── timezone.go             # TimezoneParser — from X-Timezone header
 │
-├── *_test.go             # Unit tests + integration tests + benchmarks
-├── redis_test_helper.go  # Test helper: miniredis based, no external Redis needed
-│
-├── docker-compose.yml    # Redis 7-alpine for local testing
-├── Makefile              # test / bench / coverage / up / down
+├── config.yaml
+├── docker-compose.yml
+├── Makefile
 ├── .gitignore
 └── README.md
 ```
@@ -60,7 +63,7 @@ Each middleware is independently usable via `g.PrivacyMiddleware()`, `g.IPRiskMi
 ## Quick Start
 
 ```go
-import guard "github.com/c4rb0n/rate-limit-guard"
+import guard "github.com/Vierblatt/rate-limit-guard"
 
 func main() {
     cfg := guard.Config{

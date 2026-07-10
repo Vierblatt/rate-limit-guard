@@ -1,4 +1,4 @@
-module github.com/c4rb0n/rate-limit-guard
+module github.com/Vierblatt/rate-limit-guard
 
 go 1.26.1
 

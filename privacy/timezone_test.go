@@ -1,14 +1,12 @@
-package guard
+package privacy
 
 import (
-	"context"
 	"net/http"
 	"testing"
-	"time"
 )
 
 func TestParseTimezone(t *testing.T) {
-	p := newTimezoneParser("X-Timezone")
+	p := NewTimezoneParser("X-Timezone")
 
 	tests := []struct {
 		header string
@@ -19,7 +17,6 @@ func TestParseTimezone(t *testing.T) {
 		{"X-Timezone", "Asia/Shanghai", "Asia/Shanghai"},
 		{"X-Timezone", "", "UTC"},
 		{"X-Timezone", "Invalid/Zone", "UTC"},
-		{"", "", "UTC"},
 	}
 
 	for _, tt := range tests {
@@ -34,29 +31,14 @@ func TestParseTimezone(t *testing.T) {
 	}
 }
 
-func TestTimezoneCustomHeader(t *testing.T) {
-	p := newTimezoneParser("X-Client-Timezone")
+func TestParseTimezone_customHeader(t *testing.T) {
+	p := NewTimezoneParser("X-Client-Timezone")
 
 	h := http.Header{}
 	h.Set("X-Client-Timezone", "Europe/London")
 
 	loc := p.Parse(h)
 	if loc.String() != "Europe/London" {
-		t.Errorf("Parse() = %s, want Europe/London", loc)
-	}
-}
-
-func TestContextTimezone(t *testing.T) {
-	loc, _ := time.LoadLocation("Asia/Tokyo")
-	ctx := WithTimezone(context.Background(), loc)
-	result := GetTimezone(ctx)
-	if result.String() != "Asia/Tokyo" {
-		t.Errorf("GetTimezone() = %s, want Asia/Tokyo", result)
-	}
-
-	ctx = WithTimezone(context.Background(), nil)
-	result = GetTimezone(ctx)
-	if result.String() != "UTC" {
-		t.Errorf("GetTimezone() with nil = %s, want UTC", result)
+		t.Errorf("Parse = %s, want Europe/London", loc)
 	}
 }

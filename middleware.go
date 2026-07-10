@@ -4,12 +4,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Vierblatt/rate-limit-guard/limiter"
+	"github.com/Vierblatt/rate-limit-guard/privacy"
 	"github.com/zeromicro/go-zero/rest"
 )
 
 func (g *Guard) PrivacyMiddleware() rest.Middleware {
-	s := newSanitizer(g.config.Privacy)
-	tz := newTimezoneParser(g.config.Privacy.TimezoneHeader)
+	s := privacy.NewSanitizer(g.config.Privacy)
+	tz := privacy.NewTimezoneParser(g.config.Privacy.TimezoneHeader)
 
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -86,8 +88,8 @@ func (g *Guard) RateLimitMiddleware() rest.Middleware {
 }
 
 func (g *Guard) Middleware() rest.Middleware {
-	s := newSanitizer(g.config.Privacy)
-	tz := newTimezoneParser(g.config.Privacy.TimezoneHeader)
+	s := privacy.NewSanitizer(g.config.Privacy)
+	tz := privacy.NewTimezoneParser(g.config.Privacy.TimezoneHeader)
 
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -165,24 +167,24 @@ func extractIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
-func detectRole(r *http.Request) Role {
+func detectRole(r *http.Request) limiter.Role {
 	if r.Header.Get("X-Admin") != "" {
-		return RoleAdmin
+		return limiter.RoleAdmin
 	}
 	if r.Header.Get("X-User-Id") != "" {
-		return RoleUser
+		return limiter.RoleUser
 	}
-	return RoleGuest
+	return limiter.RoleGuest
 }
 
-func resolveID(r *http.Request, role Role) string {
+func resolveID(r *http.Request, role limiter.Role) string {
 	switch role {
-	case RoleAdmin:
+	case limiter.RoleAdmin:
 		if id := r.Header.Get("X-Admin"); id != "" {
 			return id
 		}
 		return "admin"
-	case RoleUser:
+	case limiter.RoleUser:
 		if id := r.Header.Get("X-User-Id"); id != "" {
 			return id
 		}

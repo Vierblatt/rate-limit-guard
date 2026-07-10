@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/Vierblatt/rate-limit-guard/limiter"
 )
 
 type ctxKey int
@@ -15,15 +17,15 @@ const (
 	ctxSanitizedHeadersKey
 )
 
-func WithRole(ctx context.Context, role Role) context.Context {
+func WithRole(ctx context.Context, role limiter.Role) context.Context {
 	return context.WithValue(ctx, ctxRoleKey, role)
 }
 
-func GetRole(ctx context.Context) Role {
-	if v, ok := ctx.Value(ctxRoleKey).(Role); ok {
+func GetRole(ctx context.Context) limiter.Role {
+	if v, ok := ctx.Value(ctxRoleKey).(limiter.Role); ok {
 		return v
 	}
-	return RoleGuest
+	return limiter.RoleGuest
 }
 
 func WithTimezone(ctx context.Context, loc *time.Location) context.Context {

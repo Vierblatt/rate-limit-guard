@@ -1,4 +1,4 @@
-package guard
+package iprisk
 
 import (
 	"fmt"
@@ -9,10 +9,10 @@ import (
 
 type Blacklist struct {
 	redis  *redis.Redis
-	config IPRiskConfig
+	config Config
 }
 
-func NewBlacklist(rds *redis.Redis, cfg IPRiskConfig) *Blacklist {
+func NewBlacklist(rds *redis.Redis, cfg Config) *Blacklist {
 	return &Blacklist{redis: rds, config: cfg}
 }
 
@@ -51,7 +51,7 @@ func (b *Blacklist) RecordFail(ip string) (bool, error) {
 		if err := b.redis.Setex(b.key(ip), "1", ttl); err != nil {
 			return false, err
 		}
-			if _, err := b.redis.Del(key); err != nil {
+		if _, err := b.redis.Del(key); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -67,8 +67,4 @@ func (b *Blacklist) Remove(ip string) error {
 
 func (b *Blacklist) Block(ip string, duration time.Duration) error {
 	return b.redis.Setex(b.key(ip), "1", int(duration.Seconds()))
-}
-
-func (b *Blacklist) Count() (int, error) {
-	return 0, nil
 }

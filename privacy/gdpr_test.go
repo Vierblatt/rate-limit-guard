@@ -1,4 +1,4 @@
-package guard
+package privacy
 
 import (
 	"net/http"
@@ -65,11 +65,10 @@ func TestMaskDeviceID(t *testing.T) {
 }
 
 func TestSanitizeHeaders(t *testing.T) {
-	cfg := PrivacyConfig{
+	s := NewSanitizer(Config{
 		Enabled:          true,
 		SensitiveHeaders: []string{"Authorization", "Email"},
-	}
-	s := newSanitizer(cfg)
+	})
 
 	h := http.Header{}
 	h.Set("Authorization", "Bearer secret123")
@@ -79,30 +78,28 @@ func TestSanitizeHeaders(t *testing.T) {
 	sanitized := s.SanitizeHeaders(h)
 
 	if sanitized.Get("Authorization") == "Bearer secret123" {
-		t.Error("Authorization header was not sanitized")
+		t.Error("Authorization not sanitized")
 	}
 	if sanitized.Get("Email") == "alice@example.com" {
-		t.Error("Email header was not sanitized")
+		t.Error("Email not sanitized")
 	}
 	if sanitized.Get("X-Request-Id") != "abc" {
-		t.Error("Non-sensitive header was modified")
+		t.Error("non-sensitive header modified")
 	}
 }
 
-func TestSanitizeHeaderPreservesOriginal(t *testing.T) {
-	cfg := PrivacyConfig{
+func TestSanitizePreservesOriginal(t *testing.T) {
+	s := NewSanitizer(Config{
 		Enabled:          true,
 		SensitiveHeaders: []string{"Authorization"},
-	}
-	s := newSanitizer(cfg)
+	})
 
 	h := http.Header{}
 	h.Set("Authorization", "Bearer secret123")
-	h.Set("Email", "alice@example.com")
 
 	s.SanitizeHeaders(h)
 
 	if h.Get("Authorization") != "Bearer secret123" {
-		t.Error("Original header was modified by sanitize")
+		t.Error("original header was modified")
 	}
 }

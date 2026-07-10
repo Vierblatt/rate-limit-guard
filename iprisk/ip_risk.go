@@ -1,9 +1,9 @@
-package guard
+package iprisk
 
 type RiskLevel int
 
 const (
-	RiskLow  RiskLevel = iota
+	RiskLow RiskLevel = iota
 	RiskMid
 	RiskHigh
 )
@@ -22,11 +22,11 @@ func (r RiskLevel) String() string {
 }
 
 type IPRisk struct {
-	config    IPRiskConfig
+	config    Config
 	riskCache map[string]RiskLevel
 }
 
-func NewIPRisk(cfg IPRiskConfig) *IPRisk {
+func New(cfg Config) *IPRisk {
 	rc := make(map[string]RiskLevel, len(cfg.HighRiskCountries))
 	for _, code := range cfg.HighRiskCountries {
 		rc[code] = RiskHigh

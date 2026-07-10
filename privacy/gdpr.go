@@ -1,19 +1,19 @@
-package guard
+package privacy
 
 import (
 	"net/http"
 	"strings"
 )
 
-type sanitizer struct {
-	config PrivacyConfig
+type Sanitizer struct {
+	config Config
 }
 
-func newSanitizer(cfg PrivacyConfig) *sanitizer {
-	return &sanitizer{config: cfg}
+func NewSanitizer(cfg Config) *Sanitizer {
+	return &Sanitizer{config: cfg}
 }
 
-func (s *sanitizer) SanitizeHeader(h http.Header, key string) string {
+func (s *Sanitizer) SanitizeHeader(h http.Header, key string) string {
 	val := h.Get(key)
 	if val == "" {
 		return ""
@@ -31,7 +31,7 @@ func (s *sanitizer) SanitizeHeader(h http.Header, key string) string {
 	}
 }
 
-func (s *sanitizer) SanitizeHeaders(h http.Header) http.Header {
+func (s *Sanitizer) SanitizeHeaders(h http.Header) http.Header {
 	sanitized := h.Clone()
 	for _, key := range s.config.SensitiveHeaders {
 		val := s.SanitizeHeader(h, key)

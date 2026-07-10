@@ -1,4 +1,4 @@
-package guard
+package limiter
 
 import (
 	"fmt"
@@ -32,10 +32,10 @@ func (r Role) String() string {
 
 type SlidingWindowLimiter struct {
 	redis  *redis.Redis
-	config LimiterConfig
+	config Config
 }
 
-func NewSlidingWindowLimiter(rds *redis.Redis, cfg LimiterConfig) *SlidingWindowLimiter {
+func New(rds *redis.Redis, cfg Config) *SlidingWindowLimiter {
 	return &SlidingWindowLimiter{redis: rds, config: cfg}
 }
 
