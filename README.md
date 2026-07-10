@@ -97,6 +97,21 @@ BenchmarkMiddlewares/All-32           1648   898.0 µs/op  425816 B/op    968 al
 
 Full middleware pipeline completes in <1ms per request. The rate limiter allocates more due to Redis Lua script execution.
 
+```mermaid
+gantt
+    title 请求处理耗时分解 (P50)
+    dateFormat X
+    axisFormat %s ms
+
+    section 中间件全链路
+    请求入站 (Header 解析)        :active, a1, 0, 0.08
+    GDPR 脱敏 + 时区解析          :active, a2, 0.08, 0.16
+    IP 风控 (Redis EXISTS)       :active, a3, 0.16, 0.23
+    滑动窗口限流 (Redis Lua)     :active, a4, 0.23, 0.63
+    响应回写                     :active, a5, 0.63, 0.72
+    其他开销                     :active, a6, 0.72, 0.9
+```
+
 ## Testing
 
 ```bash
