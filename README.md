@@ -125,39 +125,7 @@ g := guard.NewGuard(*cfg)
 
 ## 性能
 
-测试环境：Intel i9-14900HX，Go 1.26.1。提供两个模式：
-
-- **miniredis**（默认）：进程内模拟，无需外部依赖，适合 CI
-- **真实 Redis**：`make bench-real`，Docker 启动 Redis，结果更可信
-
-### miniredis（全链路 ~1.3ms）
-
-```
-BenchmarkMiddlewares/Privacy-32         20996     58.8 µs/op   48957 B/op     39 allocs/op
-BenchmarkMiddlewares/IPRisk-32          24789     51.7 µs/op    6792 B/op     50 allocs/op
-BenchmarkMiddlewares/RateLimit-32        6014    609.5 µs/op  301039 B/op    866 allocs/op
-BenchmarkMiddlewares/All-32               921   1264.9 µs/op  447247 B/op    922 allocs/op
-```
-
-miniredis 的 Lua 执行比真实 Redis 慢约 10 倍（无 skiplist、无原子引擎），RateLimit 的绝对值被放大了。
-
-```mermaid
-gantt
-    title 请求处理耗时分解 (P50, miniredis)
-    dateFormat X
-    axisFormat %s µs
-
-    section 中间件全链路
-    Header 解析 + 时区             :active, a1, 0, 30
-    GDPR 脱敏                      :active, a2, 30, 60
-    IP 风控 (Redis EXISTS)        :active, a3, 60, 110
-    滑动窗口限流 (Redis Lua)      :active, a4, 110, 720
-    上下文组装 + 响应             :active, a5, 720, 1265
-```
-
-### 真实 Redis（全链路 ~106 µs）
-
-测试环境：Docker Redis 7-alpine (localhost), i9-14900HX, Go 1.26.1。
+测试环境：Docker Redis 7-alpine (localhost), Intel i9-14900HX, Go 1.26.1。
 
 ```
 BenchmarkMiddlewares/Privacy-32         25992     54.1 µs/op   48943 B/op     39 allocs/op
@@ -166,18 +134,11 @@ BenchmarkMiddlewares/RateLimit-32       22108     54.8 µs/op    7463 B/op     5
 BenchmarkMiddlewares/All-32             11424    106.4 µs/op   50826 B/op     71 allocs/op
 ```
 
-对比 miniredis：
-
-| 模块 | miniredis | 真实 Redis | 差距 |
-|------|-----------|------------|------|
-| Privacy | 59 µs | 54 µs | 持平（纯 Go） |
-| IPRisk | 52 µs | 49 µs | 持平（简单命令） |
-| RateLimit | 610 µs | **55 µs** | **↓ 11x**（Lua 原子执行） |
-| All | 1265 µs | **106 µs** | **↓ 12x** |
+全链路 ~106 µs，瓶颈在 HTTP Header 解析而非 Redis。
 
 ```mermaid
 gantt
-    title 请求处理耗时分解 (P50, 真实 Redis)
+    title 请求处理耗时分解 (P50)
     dateFormat X
     axisFormat %s µs
 
