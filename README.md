@@ -155,16 +155,41 @@ gantt
     上下文组装 + 响应             :active, a5, 720, 1265
 ```
 
-### 真实 Redis（预估全链路 ~0.3ms）
+### 真实 Redis（全链路 ~106 µs）
 
-| 模块 | miniredis | 真实 Redis | 说明 |
+测试环境：Docker Redis 7-alpine (localhost), i9-14900HX, Go 1.26.1。
+
+```
+BenchmarkMiddlewares/Privacy-32         25992     54.1 µs/op   48943 B/op     39 allocs/op
+BenchmarkMiddlewares/IPRisk-32          26209     49.4 µs/op    6582 B/op     39 allocs/op
+BenchmarkMiddlewares/RateLimit-32       22108     54.8 µs/op    7463 B/op     57 allocs/op
+BenchmarkMiddlewares/All-32             11424    106.4 µs/op   50826 B/op     71 allocs/op
+```
+
+对比 miniredis：
+
+| 模块 | miniredis | 真实 Redis | 差距 |
 |------|-----------|------------|------|
-| Privacy | 59 µs | 59 µs | 纯 Go 逻辑，两环境一致 |
-| IPRisk | 52 µs | ~300 µs | 真实 Redis 多一次网络往返 |
-| RateLimit | 610 µs | ~50 µs | 真实 Redis 原子执行 Lua，miniredis 放大了 10x |
-| All | 1265 µs | ~400 µs | Lua 占比从 50% 降到 12% |
+| Privacy | 59 µs | 54 µs | 持平（纯 Go） |
+| IPRisk | 52 µs | 49 µs | 持平（简单命令） |
+| RateLimit | 610 µs | **55 µs** | **↓ 11x**（Lua 原子执行） |
+| All | 1265 µs | **106 µs** | **↓ 12x** |
 
-> 运行 `BENCHMARK_REDIS_ADDR=localhost:6379 go test -bench=BenchmarkMiddlewares -benchmem` 获取真实数据。
+```mermaid
+gantt
+    title 请求处理耗时分解 (P50, 真实 Redis)
+    dateFormat X
+    axisFormat %s µs
+
+    section 中间件全链路
+    Header 解析 + 时区             :active, a1, 0, 20
+    GDPR 脱敏                      :active, a2, 20, 54
+    IP 风控 (Redis EXISTS)        :active, a3, 54, 76
+    滑动窗口限流 (Redis Lua)      :active, a4, 76, 88
+    上下文组装 + 响应             :active, a5, 88, 106
+```
+
+> 运行 `make bench-real` 复现。
 
 ## 测试
 
