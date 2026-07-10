@@ -11,6 +11,34 @@ A pluggable gateway middleware for overseas social platforms, integrating multi-
 - **Prometheus Metrics** — Built-in counters for rate limit hits, blocked requests, blacklist size
 - **go-zero Compatible** — Standard `rest.Middleware` signature, one-liner gateway integration
 
+## Project Structure
+
+```
+rate-limit-guard/
+├── guard.go              # Guard struct, NewGuard / NewGuardWithRedis
+├── config.go             # Config, LimiterConfig, IPRiskConfig, PrivacyConfig
+├── config.yaml           # Default configuration file
+│
+├── sliding_window.go     # Redis ZSET sliding window limiter (guest/user/admin)
+├── ip_risk.go            # Country-based risk evaluation + whitelist
+├── blacklist.go          # Redis-backed temp blacklist (auto-ban after N fails)
+│
+├── gdpr.go               # Header sanitization (Bearer, Email, Device-ID masking)
+├── timezone.go           # Timezone parser from X-Timezone header
+│
+├── middleware.go          # go-zero rest.Middleware adapters (4 entry points)
+├── context.go            # Context helpers: GetRole, GetTimezone, GetRegion
+├── metrics.go            # Prometheus counters (promauto, auto-registered)
+│
+├── *_test.go             # Unit tests + integration tests + benchmarks
+├── redis_test_helper.go  # Test helper: miniredis based, no external Redis needed
+│
+├── docker-compose.yml    # Redis 7-alpine for local testing
+├── Makefile              # test / bench / coverage / up / down
+├── .gitignore
+└── README.md
+```
+
 ## Architecture
 
 ```
@@ -19,6 +47,15 @@ Request → Privacy Middleware → IP Risk Middleware → Rate Limit Middleware 
 ```
 
 Each middleware is independently usable via `g.PrivacyMiddleware()`, `g.IPRiskMiddleware()`, `g.RateLimitMiddleware()`, or combined via `g.Middleware()`.
+
+### Middleware Entry Points
+
+| Function | Modules | Description |
+|----------|---------|-------------|
+| `PrivacyMiddleware()` | gdpr + timezone | Sanitize sensitive headers, parse client timezone |
+| `IPRiskMiddleware()` | ip_risk + blacklist | Check blacklist, evaluate IP risk |
+| `RateLimitMiddleware()` | sliding_window | Enforce per-role rate limits |
+| `Middleware()` | all | Full pipeline: privacy → iprisk → ratelimit |
 
 ## Quick Start
 
