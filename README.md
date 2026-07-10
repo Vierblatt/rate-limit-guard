@@ -101,15 +101,15 @@ Full middleware pipeline completes in <1ms per request. The rate limiter allocat
 gantt
     title 请求处理耗时分解 (P50)
     dateFormat X
-    axisFormat %s ms
+    axisFormat %s µs
 
     section 中间件全链路
-    请求入站 (Header 解析)        :active, a1, 0, 0.08
-    GDPR 脱敏 + 时区解析          :active, a2, 0.08, 0.16
-    IP 风控 (Redis EXISTS)       :active, a3, 0.16, 0.23
-    滑动窗口限流 (Redis Lua)     :active, a4, 0.23, 0.63
-    响应回写                     :active, a5, 0.63, 0.72
-    其他开销                     :active, a6, 0.72, 0.9
+    请求入站 (Header 解析)        :active, a1, 0, 80
+    GDPR 脱敏 + 时区解析          :active, a2, 80, 160
+    IP 风控 (Redis EXISTS)       :active, a3, 160, 230
+    滑动窗口限流 (Redis Lua)     :active, a4, 230, 630
+    响应回写                     :active, a5, 630, 720
+    其他开销                     :active, a6, 720, 900
 ```
 
 ## Testing
