@@ -1,66 +1,64 @@
 # Rate-Limit-Guard
 
-A pluggable gateway middleware for overseas social platforms, integrating multi-level rate limiting, IP risk control, timezone parsing, and GDPR request sanitization. Seamlessly integrates with the go-zero gateway.
+一款适配海外社交业务的可插拔网关中间件，集成多级限流、IP 风控、时区解析、GDPR 请求脱敏，可无缝接入 go-zero 网关层。
 
-## Features
+## 特性
 
-- **Sliding Window Rate Limiting** — Redis-based sliding window with three tiers: guest (strict), user (moderate), admin (bypass)
-- **IP Risk Control** — Country-based risk evaluation, automatic temp blacklisting after N violations, whitelist support
-- **Timezone Parsing** — Reads client timezone from `X-Timezone` header, stores in context for downstream RPC services
-- **GDPR Request Sanitization** — Masks sensitive headers (Authorization, Email, Device-ID) for log compliance
-- **Prometheus Metrics** — Built-in counters for rate limit hits, blocked requests, blacklist size
-- **go-zero Compatible** — Standard `rest.Middleware` signature, one-liner gateway integration
+- **滑动窗口限流** — 基于 Redis ZSET 实现，三级角色：游客（严格）、登录用户（宽松）、管理员（绕过）
+- **IP 风控** — 国家风险等级评估、自动临时黑名单（超过 N 次触发封禁）、白名单支持
+- **时区解析** — 从 `X-Timezone` 请求头读取客户端时区，存入 Context 供下游 RPC 服务使用
+- **GDPR 脱敏** — 对 Authorization / Email / Device-ID 等敏感 Header 做掩码处理，日志不泄露明文
+- **Prometheus 埋点** — 内置限流命中数 / 拦截请求数 / 黑名单大小计数器
+- **go-zero 原生适配** — 标准 `rest.Middleware` 签名，一行代码接入 Gateway
 
-## Project Structure
+## 项目结构
 
 ```
 rate-limit-guard/
-├── guard.go                    # Guard struct, NewGuard / NewGuardWithRedis
-├── config.go                   # Config (composes sub-package configs)
-├── middleware.go                # go-zero rest.Middleware adapters
-├── context.go                  # Context helpers (Role, Timezone, Region)
-├── metrics.go                  # Prometheus counters (promauto)
+├── guard.go                    # Guard 主结构、NewGuard / NewGuardWithRedis
+├── config.go                   # 顶层 Config（组合子包配置）
+├── middleware.go                # go-zero rest.Middleware 适配层
+├── context.go                  # Context 存取：Role / Timezone / Region
+├── metrics.go                  # Prometheus 计数器
 │
 ├── limiter/
-│   ├── config.go               # limiter.Config (WindowSec, GuestLimit, …)
-│   └── sliding_window.go       # SlidingWindowLimiter + Role (guest/user/admin)
+│   ├── config.go               # limiter.Config（窗口、阈值、管理绕过）
+│   └── sliding_window.go       # SlidingWindowLimiter + Role
 │
 ├── iprisk/
-│   ├── config.go               # iprisk.Config (BlacklistTTL, MaxFails, …)
-│   ├── ip_risk.go              # IPRisk — country-based risk evaluation + whitelist
-│   └── blacklist.go            # Blacklist — Redis-backed temp ban
+│   ├── config.go               # iprisk.Config（封禁时长、失败次数、白名单）
+│   ├── ip_risk.go              # IPRisk — 国家风险 + 白名单
+│   └── blacklist.go            # Blacklist — Redis 临时黑名单
 │
 ├── privacy/
-│   ├── config.go               # privacy.Config (TimezoneHeader, SensitiveHeaders)
-│   ├── gdpr.go                 # Sanitizer — Bearer/Email/Device-ID masking
-│   └── timezone.go             # TimezoneParser — from X-Timezone header
+│   ├── config.go               # privacy.Config（时区 Header、敏感字段）
+│   ├── gdpr.go                 # Sanitizer — Bearer/Email/DeviceID 掩码
+│   └── timezone.go             # TimezoneParser — 时区解析
 │
-├── config.yaml
-├── docker-compose.yml
+├── config.yaml                 # 默认配置文件
+├── docker-compose.yml          # Redis 7-alpine 测试环境
 ├── Makefile
 ├── .gitignore
 └── README.md
 ```
 
-## Architecture
+## 架构
 
 ```
-Request → Privacy Middleware → IP Risk Middleware → Rate Limit Middleware → Upstream
-           (sanitize+PII)      (blacklist+GeoIP)     (sliding window)
+请求 → Privacy 中间件 → IP Risk 中间件 → Rate Limit 中间件 → 上游服务
+       (脱敏+时区)      (黑名单+国家风险)    (滑动窗口)
 ```
 
-Each middleware is independently usable via `g.PrivacyMiddleware()`, `g.IPRiskMiddleware()`, `g.RateLimitMiddleware()`, or combined via `g.Middleware()`.
+每个中间件可独立使用：
 
-### Middleware Entry Points
+| 函数 | 模块 | 功能 |
+|------|------|------|
+| `PrivacyMiddleware()` | gdpr + timezone | 敏感 Header 脱敏 + 时区解析 |
+| `IPRiskMiddleware()` | ip_risk + blacklist | 黑名单检查 + IP 风险评估 |
+| `RateLimitMiddleware()` | sliding_window | 按角色执行限流 |
+| `Middleware()` | 全部 | 全链路：privacy → iprisk → ratelimit |
 
-| Function | Modules | Description |
-|----------|---------|-------------|
-| `PrivacyMiddleware()` | gdpr + timezone | Sanitize sensitive headers, parse client timezone |
-| `IPRiskMiddleware()` | ip_risk + blacklist | Check blacklist, evaluate IP risk |
-| `RateLimitMiddleware()` | sliding_window | Enforce per-role rate limits |
-| `Middleware()` | all | Full pipeline: privacy → iprisk → ratelimit |
-
-## Quick Start
+## 快速开始
 
 ```go
 import guard "github.com/Vierblatt/rate-limit-guard"
@@ -83,52 +81,51 @@ func main() {
 }
 ```
 
-## Configuration
+## 配置
 
-See [`config.yaml`](./config.yaml) for defaults:
+参考 [`config.yaml`](./config.yaml)：
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `Limiter.RedisAddr` | `localhost:6379` | Redis address |
-| `Limiter.WindowSec` | `60` | Sliding window (seconds) |
-| `Limiter.GuestLimit` | `30` | Requests/window for guests |
-| `Limiter.UserLimit` | `100` | Requests/window for users |
-| `Limiter.AdminBypass` | `true` | Skip rate limiting for admins |
-| `IPRisk.Enabled` | `true` | Enable IP risk evaluation |
-| `IPRisk.BlacklistTTL` | `10` | Blacklist duration (minutes) |
-| `IPRisk.MaxFails` | `3` | Failures before blacklisting |
-| `IPRisk.HighRiskCountries` | `[RU, UA, NG, BD, PK, VN, ID]` | High-risk country codes |
-| `Privacy.Enabled` | `true` | Enable header sanitization |
-| `Privacy.SensitiveHeaders` | `[Authorization, Email, Device-Id, X-Device-Id]` | Headers to mask |
-| `Privacy.TimezoneHeader` | `X-Timezone` | Header for client timezone |
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `Limiter.WindowSec` | `60` | 滑动窗口大小（秒） |
+| `Limiter.GuestLimit` | `30` | 游客每窗口限制次数 |
+| `Limiter.UserLimit` | `100` | 登录用户每窗口限制次数 |
+| `Limiter.AdminBypass` | `true` | 管理员是否跳过限流 |
+| `IPRisk.Enabled` | `true` | 启用 IP 风控 |
+| `IPRisk.BlacklistTTL` | `10` | 黑名单封禁时长（分钟） |
+| `IPRisk.MaxFails` | `3` | 触发黑名单的失败次数 |
+| `IPRisk.HighRiskCountries` | `[RU, UA, NG, BD, PK, VN, ID]` | 高风险国家代码 |
+| `Privacy.Enabled` | `true` | 启用 Header 脱敏 |
+| `Privacy.SensitiveHeaders` | `[Authorization, Email, Device-Id, X-Device-Id]` | 需脱敏的 Header |
+| `Privacy.TimezoneHeader` | `X-Timezone` | 客户端时区 Header |
 
-Load from file:
+从文件加载：
 
 ```go
 cfg := guard.MustLoadConfig("config.yaml")
 g := guard.NewGuard(*cfg)
 ```
 
-## Context Values
+## Context 值
 
-| Function | Type | Description |
-|----------|------|-------------|
-| `GetRole(ctx)` | `Role` | `RoleGuest`, `RoleUser`, or `RoleAdmin` |
-| `GetTimezone(ctx)` | `*time.Location` | Parsed client timezone (default UTC) |
-| `GetRegion(ctx)` | `string` | Client IP / region identifier |
-| `GetSanitizedHeaders(ctx)` | `http.Header` | GDPR-masked headers |
+| 函数 | 类型 | 说明 |
+|------|------|------|
+| `GetRole(ctx)` | `Role` | 当前角色：Guest / User / Admin |
+| `GetTimezone(ctx)` | `*time.Location` | 客户端时区（默认 UTC） |
+| `GetRegion(ctx)` | `string` | 客户端 IP / 地区标识 |
+| `GetSanitizedHeaders(ctx)` | `http.Header` | GDPR 脱敏后的 Header 副本 |
 
-## Role Detection
+## 角色判定
 
-| Role | Header | Description |
-|------|--------|-------------|
-| Guest | (none) | Anonymous users, strictest limits |
-| User | `X-User-Id` | Authenticated users |
-| Admin | `X-Admin` | Bypasses rate limiting |
+| 角色 | Header | 说明 |
+|------|--------|------|
+| 游客 | 无 | 匿名用户，最严格限流 |
+| 登录用户 | `X-User-Id` | 经过认证的用户 |
+| 管理员 | `X-Admin` | 跳过限流 |
 
-## Benchmarks
+## 性能
 
-Measured on Intel i9-14900HX, miniredis (in-process simulator). With real Redis the Lua script step drops to ~50µs.
+测试环境：Intel i9-14900HX, miniredis（进程内模拟）。注：miniredis 的 Lua 执行比真实 Redis 慢 ~10 倍，真实环境下限流耗时约 50µs。
 
 ```
 BenchmarkMiddlewares/Privacy-32         20996     58.8 µs/op   48957 B/op     39 allocs/op
@@ -137,7 +134,7 @@ BenchmarkMiddlewares/RateLimit-32        6014    609.5 µs/op  301039 B/op    86
 BenchmarkMiddlewares/All-32               921   1264.9 µs/op  447247 B/op    922 allocs/op
 ```
 
-Full middleware pipeline completes in ~1.3ms per request (miniredis). With real Redis the pipeline drops to ~0.3ms.
+全链路约 1.3ms（miniredis）。实 Redis 场景下全链路约 0.3ms。
 
 ```mermaid
 gantt
@@ -153,17 +150,13 @@ gantt
     上下文组装 + 响应             :active, a5, 720, 1265
 ```
 
-## Testing
+## 测试
 
 ```bash
-# Start Redis (optional—tests fall back to miniredis automatically)
-docker-compose up -d
-
-# Run all tests
-make test
-
-# Run benchmarks
-make bench
+make test        # 运行全部测试（miniredis，无需外部 Redis）
+make bench       # 运行性能基准测试
+make up          # docker-compose 启动 Redis
+make down        # 停止 Redis
 ```
 
 ## License
