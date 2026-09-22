@@ -1,0 +1,12 @@
+# Benchmark harness: runs the suite inside the Docker network so Redis traffic
+# never crosses the host port-forwarding layer, which adds ~300ms jitter.
+#
+# Build: docker build -f Dockerfile.bench -t rlg-bench .
+# Run:   see the "性能" section in README.md
+FROM golang:1.26-alpine
+
+RUN apk add --no-cache git
+
+WORKDIR /src
+
+CMD ["go", "test", "-run=XXX", "-bench=BenchmarkMiddlewares", "-benchmem", "-count=3", "-timeout=900s", "."]
