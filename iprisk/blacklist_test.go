@@ -27,6 +27,28 @@ func blTestRedis(t *testing.T) *redis.Redis {
 	return rds
 }
 
+// deadRedis hands back a client whose server has already shut down, so commands
+// fail fast on the error path instead of hanging.
+func deadRedis(t *testing.T) *redis.Redis {
+	t.Helper()
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis.Run: %v", err)
+	}
+
+	rds, err := redis.NewRedis(redis.RedisConf{
+		Host:        mr.Addr(),
+		Type:        "node",
+		PingTimeout: 200 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("redis.NewRedis: %v", err)
+	}
+
+	mr.Close()
+	return rds
+}
+
 func cleanBlacklist(t *testing.T, rds *redis.Redis) {
 	t.Helper()
 	_, _ = rds.Eval(
