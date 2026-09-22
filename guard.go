@@ -68,4 +68,10 @@ func applyDefaults(cfg *Config) {
 	if cfg.IPRisk.MaxFails <= 0 {
 		cfg.IPRisk.MaxFails = 3
 	}
+	if cfg.IPRisk.RiskQuotaRatio <= 0 || cfg.IPRisk.RiskQuotaRatio > 1 {
+		cfg.IPRisk.RiskQuotaRatio = 0.2
+	}
+	if cfg.IPRisk.CountryHeader == "" {
+		cfg.IPRisk.CountryHeader = "CF-IPCountry"
+	}
 }

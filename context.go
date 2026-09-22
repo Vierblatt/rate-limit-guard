@@ -14,6 +14,7 @@ const (
 	ctxRoleKey ctxKey = iota
 	ctxTimezoneKey
 	ctxRegionKey
+	ctxCountryKey
 	ctxSanitizedHeadersKey
 )
 
@@ -45,6 +46,18 @@ func WithRegion(ctx context.Context, region string) context.Context {
 
 func GetRegion(ctx context.Context) string {
 	if v, ok := ctx.Value(ctxRegionKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// WithCountry stores the client country code resolved from a trusted header.
+func WithCountry(ctx context.Context, country string) context.Context {
+	return context.WithValue(ctx, ctxCountryKey, country)
+}
+
+func GetCountry(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxCountryKey).(string); ok {
 		return v
 	}
 	return ""

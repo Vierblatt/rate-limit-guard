@@ -65,6 +65,27 @@ func (b *Blacklist) Remove(ip string) error {
 	return err
 }
 
+// Size counts the currently active blacklist entries. It uses SCAN rather than
+// KEYS so it never blocks the server, but it still walks the whole blacklist
+// keyspace: call it on block/expiry events, not on the per-request hot path.
+func (b *Blacklist) Size() (int, error) {
+	var (
+		cursor uint64
+		total  int
+	)
+	for {
+		keys, next, err := b.redis.Scan(cursor, b.key("*"), 100)
+		if err != nil {
+			return 0, err
+		}
+		total += len(keys)
+		if next == 0 {
+			return total, nil
+		}
+		cursor = next
+	}
+}
+
 func (b *Blacklist) Block(ip string, duration time.Duration) error {
 	return b.redis.Setex(b.key(ip), "1", int(duration.Seconds()))
 }

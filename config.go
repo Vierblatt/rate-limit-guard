@@ -8,12 +8,12 @@ import (
 )
 
 type Config struct {
-	RedisAddr string          `json:",default=localhost:6379"`
-	RedisPass string          `json:",optional"`
-	RedisDB   int             `json:",default=0"`
-	Limiter   limiter.Config  `json:",optional"`
-	IPRisk    iprisk.Config   `json:",optional"`
-	Privacy   privacy.Config  `json:",optional"`
+	RedisAddr string         `json:",default=localhost:6379"`
+	RedisPass string         `json:",optional"`
+	RedisDB   int            `json:",default=0"`
+	Limiter   limiter.Config `json:",optional"`
+	IPRisk    iprisk.Config  `json:",optional"`
+	Privacy   privacy.Config `json:",optional"`
 }
 
 func MustLoadConfig(path string) *Config {

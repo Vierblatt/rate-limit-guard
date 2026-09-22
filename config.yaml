@@ -1,7 +1,8 @@
+RedisAddr: localhost:6379
+RedisPass: ""
+RedisDB: 0
+
 Limiter:
-  RedisAddr: localhost:6379
-  RedisPass: ""
-  RedisDB: 0
   WindowSec: 60
   GuestLimit: 30
   UserLimit: 100
@@ -11,6 +12,8 @@ IPRisk:
   Enabled: true
   BlacklistTTL: 10
   MaxFails: 3
+  RiskQuotaRatio: 0.2
+  CountryHeader: CF-IPCountry
   Whitelist: []
   HighRiskCountries:
     - RU

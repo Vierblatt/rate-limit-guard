@@ -39,8 +39,33 @@ func New(rds *redis.Redis, cfg Config) *SlidingWindowLimiter {
 	return &SlidingWindowLimiter{redis: rds, config: cfg}
 }
 
+// LimitFor returns the per-window quota for role. A non-positive result means
+// the role is exempt from limiting.
+func (l *SlidingWindowLimiter) LimitFor(role Role) int {
+	switch role {
+	case RoleGuest:
+		return l.config.GuestLimit
+	case RoleUser:
+		return l.config.UserLimit
+	case RoleAdmin:
+		if l.config.AdminBypass {
+			return 0
+		}
+		// No dedicated admin quota: a non-bypassing admin shares the user tier.
+		return l.config.UserLimit
+	default:
+		return 0
+	}
+}
+
 func (l *SlidingWindowLimiter) Allow(role Role, id string) (bool, error) {
-	if role == RoleAdmin && l.config.AdminBypass {
+	return l.AllowN(role, id, l.LimitFor(role))
+}
+
+// AllowN applies an explicit quota, letting callers (e.g. IP risk control)
+// tighten the limit for a single request. A non-positive limit allows the call.
+func (l *SlidingWindowLimiter) AllowN(role Role, id string, limit int) (bool, error) {
+	if limit <= 0 {
 		return true, nil
 	}
 
@@ -48,16 +73,6 @@ func (l *SlidingWindowLimiter) Allow(role Role, id string) (bool, error) {
 	now := time.Now().UnixMilli()
 	window := int64(l.config.WindowSec) * 1000
 	member := fmt.Sprintf("%d:%d", now, rand.Int63())
-
-	var limit int
-	switch role {
-	case RoleGuest:
-		limit = l.config.GuestLimit
-	case RoleUser:
-		limit = l.config.UserLimit
-	default:
-		return true, nil
-	}
 
 	script := `
 local key = KEYS[1]

@@ -38,6 +38,11 @@ func (g *Guard) IPRiskMiddleware() rest.Middleware {
 				return
 			}
 
+			if !g.config.IPRisk.Enabled {
+				next(w, r)
+				return
+			}
+
 			blocked, err := g.blacklist.IsBlocked(ip)
 			if err != nil {
 				http.Error(w, "internal error", http.StatusInternalServerError)
@@ -49,7 +54,8 @@ func (g *Guard) IPRiskMiddleware() rest.Middleware {
 				return
 			}
 
-			next(w, r)
+			country := g.ipRisk.CountryFrom(r.Header)
+			next(w, r.WithContext(WithCountry(r.Context(), country)))
 		}
 	}
 }
@@ -62,23 +68,10 @@ func (g *Guard) RateLimitMiddleware() rest.Middleware {
 			id := resolveID(r, role)
 
 			ctx := WithRole(r.Context(), role)
+			ctx = WithCountry(ctx, g.ipRisk.CountryFrom(r.Header))
 			r = r.WithContext(ctx)
 
-			allowed, err := g.limiter.Allow(role, id)
-			if err != nil {
-				http.Error(w, "internal error", http.StatusInternalServerError)
-				return
-			}
-
-			g.metrics.IncRequest()
-
-			if !allowed {
-				g.metrics.IncRateLimitHits()
-				blocked, blErr := g.blacklist.RecordFail(ip)
-				if blErr == nil && blocked {
-					g.metrics.SetBlacklistCount(1)
-				}
-				http.Error(w, "too many requests", http.StatusTooManyRequests)
+			if !g.enforceRateLimit(w, r, ip, role, id) {
 				return
 			}
 
@@ -101,6 +94,7 @@ func (g *Guard) Middleware() rest.Middleware {
 			ctx := WithTimezone(r.Context(), loc)
 			ctx = WithRole(ctx, role)
 			ctx = WithRegion(ctx, ip)
+			ctx = WithCountry(ctx, g.ipRisk.CountryFrom(r.Header))
 
 			if g.config.Privacy.Enabled {
 				sanitized := s.SanitizeHeaders(r.Header)
@@ -127,29 +121,50 @@ func (g *Guard) Middleware() rest.Middleware {
 				}
 			}
 
-			allowed, err := g.limiter.Allow(role, id)
-			if err != nil {
-				http.Error(w, "internal error", http.StatusInternalServerError)
-				return
-			}
-
-			g.metrics.IncRequest()
-
-			if !allowed {
-				g.metrics.IncRateLimitHits()
-				if g.config.IPRisk.Enabled {
-					blocked, blErr := g.blacklist.RecordFail(ip)
-					if blErr == nil && blocked {
-						g.metrics.SetBlacklistCount(1)
-					}
-				}
-				http.Error(w, "too many requests", http.StatusTooManyRequests)
+			if !g.enforceRateLimit(w, r, ip, role, id) {
 				return
 			}
 
 			next(w, r)
 		}
 	}
+}
+
+// enforceRateLimit applies the sliding window quota, tightened by the caller's
+// region risk level. It reports whether the request may proceed; on rejection it
+// has already written the response.
+func (g *Guard) enforceRateLimit(w http.ResponseWriter, r *http.Request, ip string, role limiter.Role, id string) bool {
+	// A whitelisted IP is an internal caller: exempt from limiting entirely, so
+	// the composed middleware chain and the standalone limiter agree.
+	if g.ipRisk.IsWhitelisted(ip) {
+		return true
+	}
+
+	country := GetCountry(r.Context())
+	limit := g.ipRisk.Quota(country, g.limiter.LimitFor(role))
+
+	allowed, err := g.limiter.AllowN(role, id, limit)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return false
+	}
+
+	g.metrics.IncRequest()
+
+	if !allowed {
+		g.metrics.IncRateLimitHits()
+		if g.config.IPRisk.Enabled {
+			if blocked, blErr := g.blacklist.RecordFail(ip); blErr == nil && blocked {
+				if size, sizeErr := g.blacklist.Size(); sizeErr == nil {
+					g.metrics.SetBlacklistCount(size)
+				}
+			}
+		}
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		return false
+	}
+
+	return true
 }
 
 func extractIP(r *http.Request) string {
@@ -177,18 +192,14 @@ func detectRole(r *http.Request) limiter.Role {
 	return limiter.RoleGuest
 }
 
+// resolveID returns the bucket key for role. detectRole only selects a role when
+// its identifying header is present, so the Get calls below never come back empty.
 func resolveID(r *http.Request, role limiter.Role) string {
 	switch role {
 	case limiter.RoleAdmin:
-		if id := r.Header.Get("X-Admin"); id != "" {
-			return id
-		}
-		return "admin"
+		return r.Header.Get("X-Admin")
 	case limiter.RoleUser:
-		if id := r.Header.Get("X-User-Id"); id != "" {
-			return id
-		}
-		return r.Header.Get("Authorization")
+		return r.Header.Get("X-User-Id")
 	default:
 		return extractIP(r)
 	}
