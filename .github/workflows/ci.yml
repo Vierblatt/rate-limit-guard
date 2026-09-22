@@ -34,8 +34,16 @@ jobs:
       - name: Test with race detector
         run: go test ./... -race -count=1 -coverprofile=coverage.out -covermode=atomic
 
-      - name: Enforce coverage floor
+      - name: Report and enforce coverage floor
         run: |
+          {
+            echo "## 覆盖率"
+            echo
+            echo '```'
+            go tool cover -func=coverage.out
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
           total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%/, "", $3); print $3}')
           echo "total coverage: ${total}%"
           floor=90
@@ -43,9 +51,3 @@ jobs:
             echo "coverage ${total}% is below the ${floor}% floor"
             exit 1
           fi
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.out
-          fail_ci_if_error: false
