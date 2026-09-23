@@ -1,6 +1,6 @@
 # Rate-Limit-Guard
 
-一款适配海外社交业务的可插拔网关中间件，集成多级限流、IP 风控、时区解析、GDPR 请求脱敏，可无缝接入 go-zero 网关层。
+一款可插拔的 go-zero 网关中间件，集成多级限流、IP 风控、时区解析与请求头脱敏，用于应对刷量、爬虫与高频请求。
 
 [![CI](https://github.com/Vierblatt/rate-limit-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/Vierblatt/rate-limit-guard/actions/workflows/ci.yml)
 
@@ -9,7 +9,7 @@
 - **滑动窗口限流** — 基于 Redis ZSET 实现，三级角色：游客（严格）、登录用户（宽松）、管理员（绕过）
 - **IP 风控** — 国家风险等级评估并收紧配额、自动临时黑名单（超过 N 次触发封禁）、白名单支持
 - **时区解析** — 从 `X-Timezone` 请求头读取客户端时区，存入 Context 供下游 RPC 服务使用
-- **GDPR 脱敏** — 对 Authorization / Email / Device-ID 等敏感 Header 做掩码处理，日志不泄露明文
+- **敏感 Header 脱敏** — 对 Authorization / Email / Device-ID 等敏感 Header 做掩码处理，日志不泄露明文
 - **Prometheus 埋点** — 内置限流命中数 / 拦截请求数 / 黑名单大小计数器
 - **go-zero 原生适配** — 标准 `rest.Middleware` 签名，一行代码接入 Gateway
 
@@ -135,7 +135,7 @@ g := guard.NewGuard(*cfg)
 | `GetTimezone(ctx)` | `*time.Location` | 客户端时区（默认 UTC） |
 | `GetRegion(ctx)` | `string` | 客户端 IP |
 | `GetCountry(ctx)` | `string` | 客户端国家代码（来自可信头） |
-| `GetSanitizedHeaders(ctx)` | `http.Header` | GDPR 脱敏后的 Header 副本 |
+| `GetSanitizedHeaders(ctx)` | `http.Header` | 脱敏后的 Header 副本 |
 
 ## 角色判定
 
