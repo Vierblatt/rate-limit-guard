@@ -7,3 +7,13 @@ Thumbs.db
 vendor/
 *.txt
 coverage.out
+
+# 环境与凭证
+.env
+*.env.local
+
+# 编辑器 / AI 工具本地目录
+.workbuddy/
+.playwright-mcp/
+.idea/
+.vscode/
